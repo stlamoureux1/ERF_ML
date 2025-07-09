@@ -12,7 +12,7 @@ N = 10000
 # Lower and upper bounds for absolute temperature and air pressure.
 # Pressure does not take into account hydrostatic balance at present.
 temp_range = (190, 323)
-pres_range = (1e5, 1e3)
+pres_range = (1e3, 1e5)
 
 # We generate samples for vapor mixing ratio based on a multiple
 # of the saturation mixing ratio, itself a function of temperature and pressure.
@@ -89,7 +89,7 @@ print("\tmax delta T:", delta_T.max())
 print("\tmin delta T:", delta_T.min(), "\n")
 
 print("\tmean delta qv:", delta_qv.mean())
-print("\tvariance in delta qv:", delta_qc.var())
+print("\tvariance in delta qv:", delta_qv.var())
 print("\tmax delta qv:", delta_qv.var())
 print("\tmin delta qv:", delta_qv.min(), "\n")
 
