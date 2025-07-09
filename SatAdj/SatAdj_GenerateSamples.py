@@ -5,6 +5,8 @@ import numpy as np
 from AdvanceSatAdj import AdvanceSatAdj
 from NewtonIterSat import erf_qsatw
 
+# TODO: Add some command line args to simplify rerunning and debugging.
+
 N = 10000
 
 # Lower and upper bounds for absolute temperature and air pressure.
