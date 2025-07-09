@@ -10,11 +10,15 @@ def NewtonIterSat(T, P, qv, qc):
         T (float): initial absolute temperature
         P (float): pressure (constant)
         qv (float): water vapor mixing ratio
-        q_s (float): water vapor mixing ratio for fully saturated air at a given temperature
+        qc (float): cloud mixing ratio (?)
 
+    For eval purposes:
     Return:
-        delta_T (float): the change in temperature
-        delta_qv (float): the change in vapor mixing ratio
+        T: resulting temperature
+        qv: vapor mixing ratio
+        qc: cloud mixing ratio
+
+    TODO: Return delta_T and delta_qv instead.
 
     Notes:
         Defined in ERF/Source/Microphysics/SatAdj/ERF_SatAdj.H
@@ -44,6 +48,9 @@ def NewtonIterSat(T, P, qv, qc):
         qsat = erf_qsatw(T, P)
         dqsat = erf_dtqsatw(T, P)
 
+        # print("qsat: ", qsat)
+        # print("dqsat: ", dqsat)
+
         # Function for root finding:
         # 0 = -T_new + T_old + L_eff/C_p * (qv - qsat)
         fff = -T_new + T + fac_cond * (qv - qsat)
@@ -58,8 +65,8 @@ def NewtonIterSat(T, P, qv, qc):
         # Update iteration
         niter += 1
 
-        print(qsat)
-        print(T_new)
+        # print(qsat)
+        # print(T_new)
 
         if np.abs(dT) < tol or niter > 20:
             break
@@ -69,18 +76,23 @@ def NewtonIterSat(T, P, qv, qc):
 
     delta_qv = qv - qsat
 
-    # NOTE: not sure what these are used for, if at all in this case
     qv = qsat
     qc += delta_qv
 
     delta_T = T_new - T
 
-    return delta_T, delta_qv
+    # return delta_T, delta_qv
+
+    # Temporary
+    # For eval purposes: return all three parameters of interest
+    return T_new, qv, qc
 
 
 def erf_esatw_cc(T):
     """
-    Find the saturation vapor pressure of water for the given temperature. Use the Magnus formula for the approximate solution to the Clausius-Clapeyron equation.
+    Find the saturation vapor pressure of water for the given temperature. 
+    Use the Magnus formula for the approximate solution to the 
+    Clausius-Clapeyron equation.
     Called from erf_esatw.
 
     Parameter:
