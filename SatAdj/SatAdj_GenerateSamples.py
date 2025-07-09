@@ -75,7 +75,7 @@ samples = np.column_stack([
 ])
 
 # Assemble data frame
-col_names = ["T_in", "pres_in", "qv_in", "qc_i", "L", "Cp", "T_out", "qv_out", "qc_out", "delta T", "delta qv", "delta qc"]
+col_names = ["T_in", "pres_in", "qv_in", "qc_in", "L", "Cp", "T_out", "qv_out", "qc_out", "delta T", "delta qv", "delta qc"]
 df = pd.DataFrame(samples, columns=col_names)
 
 # Write to csv

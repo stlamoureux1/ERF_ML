@@ -10,15 +10,12 @@ def NewtonIterSat(T, P, qv, qc):
         T (float): initial absolute temperature
         P (float): pressure (constant)
         qv (float): water vapor mixing ratio
-        qc (float): cloud mixing ratio (?)
+        qc (float): cloud mixing ratio
 
-    For eval purposes:
     Return:
         T: resulting temperature
         qv: vapor mixing ratio
         qc: cloud mixing ratio
-
-    TODO: Return delta_T and delta_qv instead.
 
     Notes:
         Defined in ERF/Source/Microphysics/SatAdj/ERF_SatAdj.H
@@ -48,9 +45,6 @@ def NewtonIterSat(T, P, qv, qc):
         qsat = erf_qsatw(T, P)
         dqsat = erf_dtqsatw(T, P)
 
-        # print("qsat: ", qsat)
-        # print("dqsat: ", dqsat)
-
         # Function for root finding:
         # 0 = -T_new + T_old + L_eff/C_p * (qv - qsat)
         fff = -T_new + T + fac_cond * (qv - qsat)
@@ -65,9 +59,6 @@ def NewtonIterSat(T, P, qv, qc):
         # Update iteration
         niter += 1
 
-        # print(qsat)
-        # print(T_new)
-
         if np.abs(dT) < tol or niter > 20:
             break
 
@@ -81,10 +72,6 @@ def NewtonIterSat(T, P, qv, qc):
 
     delta_T = T_new - T
 
-    # return delta_T, delta_qv
-
-    # Temporary
-    # For eval purposes: return all three parameters of interest
     return T_new, qv, qc
 
 
