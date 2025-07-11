@@ -1,13 +1,20 @@
 import ERF_Constants as const
 import pandas as pd
 import numpy as np
+import argparse
 
 from AdvanceSatAdj import AdvanceSatAdj
 from NewtonIterSat import erf_qsatw
 
-# TODO: Add some command line args to simplify rerunning and debugging.
+parser = argparse.ArgumentParser()
+parser.add_argument("-N", "--num-samples", help="Number of samples to draw. Default is 1e4.", default=1e4)
+parser.add_argument("-v", "--verbose", help="Display summary statistics for output variables.", action="store_true")
+parser.add_argument("-f", "--file-name", help="Name of file to save (csv format). Default is 'samples.csv'", default="samples.csv")
 
-N = 10000
+args = parser.parse_args()
+
+# number of samples to generate
+N = int(args.num_samples)
 
 # Lower and upper bounds for absolute temperature and air pressure.
 # Pressure does not take into account hydrostatic balance at present.
@@ -74,26 +81,32 @@ samples = np.column_stack([
     delta_qc
 ])
 
+file_name = args.file_name
+
 # Assemble data frame
 col_names = ["T_in", "pres_in", "qv_in", "qc_in", "L", "Cp", "T_out", "qv_out", "qc_out", "delta T", "delta qv", "delta qc"]
 df = pd.DataFrame(samples, columns=col_names)
 
 # Write to csv
-df.to_csv("samples.csv", index=False)
+df.to_csv(file_name, index=False)
 
-# Display stats for deltas
-print("Summary stats")
-print("\tmean delta T:", delta_T.mean())
-print("\tvariance in delta T:", delta_T.var())
-print("\tmax delta T:", delta_T.max())
-print("\tmin delta T:", delta_T.min(), "\n")
+if args.verbose:
+    # Display stats for deltas
+    print("Summary stats")
+    print("\tmean delta T:", delta_T.mean())
+    print("\tvariance in delta T:", delta_T.var())
+    print("\tmax delta T:", delta_T.max())
+    print("\tmin delta T:", delta_T.min())
+    print("\tmin |delta T|:", np.abs(delta_T).min(),"\n")
 
-print("\tmean delta qv:", delta_qv.mean())
-print("\tvariance in delta qv:", delta_qv.var())
-print("\tmax delta qv:", delta_qv.var())
-print("\tmin delta qv:", delta_qv.min(), "\n")
+    print("\tmean delta qv:", delta_qv.mean())
+    print("\tvariance in delta qv:", delta_qv.var())
+    print("\tmax delta qv:", delta_qv.var())
+    print("\tmin delta qv:", delta_qv.min())
+    print("\tmin |delta qv|:", np.abs(delta_qv).min(), "\n")
 
-print("\tmean delta qc:", delta_qc.mean())
-print("\tvariance in delta qc:", delta_qc.var())
-print("\tmax delta qc:", delta_qc.max())
-print("\tmin delta qc:", delta_qc.min())
+    print("\tmean delta qc:", delta_qc.mean())
+    print("\tvariance in delta qc:", delta_qc.var())
+    print("\tmax delta qc:", delta_qc.max())
+    print("\tmin delta qc:", delta_qc.min())
+    print("\tmin |delta qc|:", np.abs(delta_qc).min())
