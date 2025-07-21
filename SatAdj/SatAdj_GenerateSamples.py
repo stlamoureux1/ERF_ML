@@ -10,6 +10,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("-N", "--num-samples", help="Number of samples to draw. Default is 1e4.", default=1e4)
 parser.add_argument("-v", "--verbose", help="Display summary statistics for output variables.", action="store_true")
 parser.add_argument("-f", "--file-name", help="Name of file to save (csv format). Default is 'samples.csv'", default="samples.csv")
+parser.add_argument("--log-qc", help="use log scale to generate qc_in samples", action=argparse.BooleanOptionalAction)
 
 args = parser.parse_args()
 
@@ -26,7 +27,12 @@ pres_range = (1e3, 1e5)
 qv_multiplier_range = (0, 1.5)
 
 # Lower and upper bounds for cloud mixing ratio
+log_qc = bool(args.log_qc)
 qc_range = (0, 5e-3)
+
+if log_qc:
+    qc_range = (-12, -3)
+
 
 # Use constant latent and specific heat for now
 latent_heat = const.L_v
@@ -35,7 +41,12 @@ specific_heat = const.Cp_d
 # Independent input variables
 temp_in = np.random.uniform(temp_range[0], temp_range[1], N)
 pres_in = np.random.uniform(pres_range[0], pres_range[1], N)
-qc_in = np.random.uniform(qc_range[0], qc_range[1], N)
+
+if log_qc:
+    qc_in = np.logspace(qc_range[0], qc_range[1], N)
+else:
+    qc_in = np.random.uniform(qc_range[0], qc_range[1], N)
+
 
 # Derived input variable(s)
 # Set qv based on temperature and pressure
