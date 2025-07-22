@@ -1,17 +1,58 @@
+# TODO: Add minibatch training
+# TODO: Add train/validation split to track validation error over training runs
+
+import argparse
+
 import pandas as pd
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
 
+import matplotlib.pyplot as plt
+
+from torch.utils.data import TensorDataset, DataLoader
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler
+
+from tqdm import tqdm
+
+#
+# I/O
+#
+
+parser = argparse.ArgumentParser()
+parser.add_argument("-w", "--width", help="Width of hidden layers. Default is 64", default=64)
+parser.add_argument("-i", "--input-file", help="File name of sample input data for training. This file will get split into train/test/validation sets.")
+parser.add_argument("-o", "--output-file", help="File name for parameters file resulting from training in .pt format.")
+parser.add_argument("-e", "--epochs", help="Number of training epochs", default=1000)
+parser.add_argument("-t", "--test-size", help="Ratio of data to hold out for testing, 0 < test_size < 1. Default is 0.3", default=0.3)
+parser.add_argument("-s", "--early-stopping", help="If improvement on validation set is below this threshold on successive epochs, stop training to prevent over-fitting.", default=1e-6)
+parser.add_argument("-p", "--plot-training", help="Display matplotlib scatter plot of training and validation error over training run. Uses a log-scale for y-axis.", action=argparse.BooleanOptionalAction)
+parser.add_argument("-lr", "--learning-rate", help="Set learning rate used by Adam optimizer", default=1e-3)
+parser.add_argument("-b", "--batch-size", help="Set batch size for minibatch training.", default=64)
+
+args = parser.parse_args()
+
+# Variables specified at command line
+width = int(args.width)
+input_file = args.input_file
+output_file = args.output_file
+epochs = int(args.epochs)
+test_size = args.test_size
+early_stopping = args.early_stopping
+plot_training = args.plot_training
+learning_rate = float(args.learning_rate)
+batch_size = int(args.batch_size)
 
 #
 # Model: Multilayer Perceptron
 #
 
 class MLP(nn.Module):
+    """
+    Multi-layer perceptron with 2 hidden layers. Default width of hidden layers is 64 units.
+    """
     def __init__(self, n_in, width, n_out):
         super(MLP, self).__init__()
         self.model = nn.Sequential(
@@ -30,29 +71,47 @@ class MLP(nn.Module):
 # Read in data and perform conversions
 #
 
-df = pd.read_csv('samples10k.csv')
+df = pd.read_csv(input_file)
 
 X = df[['T_in', 'qv_in', 'qc_in', 'pres_in']].values
 Y = df[['T_out', 'qv_out', 'qc_out']].values
 
-# log transform pressure (input only)
-X[:, 3] = np.log10(X[:, 3])
+# Train/test split
+X_temp_arr, X_test_arr, Y_temp_arr, Y_test_arr = train_test_split(X, Y, test_size=test_size)
 
-# Linear scaling for all variabls
+# rescale test-size for validation hold out
+val_size = test_size / (1 - test_size)
+X_train_arr, X_val_arr, Y_train_arr, Y_val_arr = train_test_split(X_temp_arr, Y_temp_arr, test_size=val_size)
+
+#
+# Variable scaling
+#
+
+# log transform pressure (input only), since it ranges over 3 orderd of magnitude
+X[:,3] = np.log10(X[:,3])
+
+# log scale qc_in, accounting for value 0
+X[:,2] = np.log1p(X[:,2])
+Y[:,2] = np.log1p(Y[:,2])
+
+# Use linear scaling for all variables.
 scaler_X = MinMaxScaler()
 scaler_Y = MinMaxScaler()
 
-X = scaler_X.fit_transform(X)
-Y = scaler_Y.fit_transform(Y)
+# Fit scaling transform to training data.
+scaler_X.fit(X_train_arr)
+scaler_Y.fit(Y_train_arr)
 
-# Validation split
-X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.4)
+X_train = torch.from_numpy(scaler_X.transform(X_train_arr))
+X_val = torch.from_numpy(scaler_X.transform(X_val_arr))
+X_test = torch.from_numpy(scaler_X.transform(X_test_arr))
 
-# Convert to torch tensors, float64 by default
-X_train = torch.from_numpy(X_train)
-X_test = torch.from_numpy(X_test)
-Y_train = torch.from_numpy(Y_train)
-Y_test = torch.from_numpy(Y_test)
+Y_train = torch.from_numpy(scaler_Y.transform(Y_train_arr))
+Y_val = torch.from_numpy(scaler_Y.transform(Y_val_arr))
+Y_test = torch.from_numpy(scaler_Y.transform(Y_test_arr))
+
+dataset_train = TensorDataset(X_train, Y_train)
+dataloader_train = DataLoader(dataset_train, batch_size=batch_size, shuffle=True)
 
 #
 # Setup and train model
@@ -62,42 +121,71 @@ Y_test = torch.from_numpy(Y_test)
 n_in = 4
 n_out = 3
 
-# width is a hyperparameter
-width = 64
-
-# instantiate MLP
+# Instantiate MLP. Use float64.
 net = MLP(n_in, width, n_out)
 net.double()
 
 # training properties
 m_tol = 1e-6
 criterion = nn.MSELoss()
-optimizer = optim.Adam(net.parameters(), lr=0.001)
+# when I actually plotted training loss, there was heavy oscillation in later epochs
+# a smaller learning rate seems to alleviate this
+optimizer = optim.Adam(net.parameters(), lr=learning_rate)
 
-# training run
-epochs = 5000
-for epoch in range(epochs):
+# save training loss to plot later
+train_loss_history = []
+val_loss_history = []
+
+# initialize validation loss to enforce early stopping in training loop
+val_loss = 0
+
+# Model training
+for epoch in tqdm(range(epochs)):
+    # training steps proper
     net.train()
+    epoch_train_loss = 0
+    num_train_samples = 0
+    for X_batch, Y_batch in dataloader_train:
+        optimizer.zero_grad()
+        Y_pred_batch = net(X_batch)
+        batch_loss = criterion(Y_pred_batch, Y_batch)
+        batch_loss.backward()
+        optimizer.step()
 
-    Y_pred = net(X_train)
-    loss = criterion(Y_pred, Y_train)
+        epoch_train_loss += batch_loss.item() * X_batch.size(0)
+        num_train_samples += X_batch.size(0)
 
-    optimizer.zero_grad()
-    loss.backward()
-    optimizer.step()
+    avg_epoch_train_loss = epoch_train_loss / num_train_samples
+    train_loss_history.append(avg_epoch_train_loss)
 
-    if (loss.item() < m_tol) :
-        print(f"Breaking at Epoch {epoch}, Loss: {loss.item():.3e}")
+    if (avg_epoch_train_loss < m_tol) :
+        print(f"Breaking at Epoch {epoch}, Loss: {avg_epoch_train_loss:.3e}")
         break
 
     if epoch % 500 == 0:
-        print(f"Epoch {epoch}, Loss: {loss.item():.3e}")
-        continue
+        print(f"Epoch {epoch}, Loss: {avg_epoch_train_loss:.3e}")
 
     if epoch == epochs - 1:
-        print(f"Final training loss after {epochs} epochs: {loss.item():.3e}")
+        print(f"Final training loss after {epochs} epochs: {avg_epoch_train_loss:.3e}")
 
-# validation
+    # validation steps
+    net.eval()
+    Y_pred_val = net(X_val)
+    val_loss = criterion(Y_pred_val, Y_val)
+    val_loss_history.append(val_loss.item())
+
+    if epoch % 500 == 0:
+        print(f"Validation loss: {val_loss.item():.3e}")
+
+    # TODO: Enforce early stopping
+
+if plot_training:
+    plt.scatter(range(epochs), train_loss_history, marker='.', alpha=0.2)
+    plt.scatter(range(epochs), val_loss_history, marker='.', alpha=0.2, color='red')
+    plt.yscale('log')
+
+
+# testing
 net.eval()
 with torch.no_grad():
     Y_pred = net(X_test)
@@ -105,22 +193,12 @@ with torch.no_grad():
 
     print(f"Test MSE: {loss.item():.3e}")
 
+    plt.scatter(epochs-1, loss.item(), color='green')
+
+    plt.show()
+
 # model export
 scripted_model = torch.jit.script(net)
-scripted_model.save("SatAdj_MLP.pt")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+scripted_model.save(output_file)
 
 
