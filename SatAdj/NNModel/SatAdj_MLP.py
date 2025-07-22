@@ -1,6 +1,3 @@
-# TODO: Add minibatch training
-# TODO: Add train/validation split to track validation error over training runs
-
 import argparse
 
 import pandas as pd
@@ -8,6 +5,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import joblib
 
 import matplotlib.pyplot as plt
 
@@ -77,22 +75,32 @@ X = df[['T_in', 'qv_in', 'qc_in', 'pres_in']].values
 Y = df[['T_out', 'qv_out', 'qc_out']].values
 
 # Train/test split
-X_temp_arr, X_test_arr, Y_temp_arr, Y_test_arr = train_test_split(X, Y, test_size=test_size)
+# X_temp_arr, X_test_arr, Y_temp_arr, Y_test_arr = train_test_split(X, Y, test_size=test_size)
 
 # rescale test-size for validation hold out
-val_size = test_size / (1 - test_size)
-X_train_arr, X_val_arr, Y_train_arr, Y_val_arr = train_test_split(X_temp_arr, Y_temp_arr, test_size=val_size)
+# val_size = test_size / (1 - test_size)
+# X_train_arr, X_val_arr, Y_train_arr, Y_val_arr = train_test_split(X_temp_arr, Y_temp_arr, test_size=val_size)
 
 #
 # Variable scaling
 #
 
-# log transform pressure (input only), since it ranges over 3 orderd of magnitude
+# log transform pressure (input only), since it ranges over 3 orders of magnitude
 X[:,3] = np.log10(X[:,3])
+
+X[:,1] = np.log1p(X[:,1])
+Y[:,1] = np.log1p(Y[:,1])
 
 # log scale qc_in, accounting for value 0
 X[:,2] = np.log1p(X[:,2])
 Y[:,2] = np.log1p(Y[:,2])
+
+# Train/test split
+X_temp_arr, X_test_arr, Y_temp_arr, Y_test_arr = train_test_split(X, Y, test_size=test_size)
+
+# rescale test-size for validation hold out
+val_size = test_size / (1 - test_size)
+X_train_arr, X_val_arr, Y_train_arr, Y_val_arr = train_test_split(X_temp_arr, Y_temp_arr, test_size=val_size)
 
 # Use linear scaling for all variables.
 scaler_X = MinMaxScaler()
@@ -102,6 +110,11 @@ scaler_Y = MinMaxScaler()
 scaler_X.fit(X_train_arr)
 scaler_Y.fit(Y_train_arr)
 
+# pickle scalers to use on separate data
+joblib.dump(scaler_X, 'scaler_X.pkl')
+joblib.dump(scaler_Y, 'scaler_Y.pkl')
+
+# Apply MinMax transform and convert to torch tensors
 X_train = torch.from_numpy(scaler_X.transform(X_train_arr))
 X_val = torch.from_numpy(scaler_X.transform(X_val_arr))
 X_test = torch.from_numpy(scaler_X.transform(X_test_arr))
@@ -110,6 +123,7 @@ Y_train = torch.from_numpy(scaler_Y.transform(Y_train_arr))
 Y_val = torch.from_numpy(scaler_Y.transform(Y_val_arr))
 Y_test = torch.from_numpy(scaler_Y.transform(Y_test_arr))
 
+# Set up data loader for minibatch training
 dataset_train = TensorDataset(X_train, Y_train)
 dataloader_train = DataLoader(dataset_train, batch_size=batch_size, shuffle=True)
 
@@ -136,11 +150,12 @@ optimizer = optim.Adam(net.parameters(), lr=learning_rate)
 train_loss_history = []
 val_loss_history = []
 
-# initialize validation loss to enforce early stopping in training loop
-val_loss = 0
+epoch_count = 0
 
 # Model training
 for epoch in tqdm(range(epochs)):
+    epoch_count += 1
+
     # training steps proper
     net.train()
     epoch_train_loss = 0
@@ -158,10 +173,6 @@ for epoch in tqdm(range(epochs)):
     avg_epoch_train_loss = epoch_train_loss / num_train_samples
     train_loss_history.append(avg_epoch_train_loss)
 
-    if (avg_epoch_train_loss < m_tol) :
-        print(f"Breaking at Epoch {epoch}, Loss: {avg_epoch_train_loss:.3e}")
-        break
-
     if epoch % 500 == 0:
         print(f"Epoch {epoch}, Loss: {avg_epoch_train_loss:.3e}")
 
@@ -174,14 +185,18 @@ for epoch in tqdm(range(epochs)):
     val_loss = criterion(Y_pred_val, Y_val)
     val_loss_history.append(val_loss.item())
 
+    if (val_loss < m_tol) :
+        print(f"Breaking at Epoch {epoch}, Validation Loss: {val_loss.item():.3e}")
+        break
+
     if epoch % 500 == 0:
         print(f"Validation loss: {val_loss.item():.3e}")
 
-    # TODO: Enforce early stopping
+
 
 if plot_training:
-    plt.scatter(range(epochs), train_loss_history, marker='.', alpha=0.2)
-    plt.scatter(range(epochs), val_loss_history, marker='.', alpha=0.2, color='red')
+    plt.scatter(range(epoch_count), train_loss_history, marker='.', alpha=0.2)
+    plt.scatter(range(epoch_count), val_loss_history, marker='.', alpha=0.2, color='red')
     plt.yscale('log')
 
 
@@ -193,7 +208,7 @@ with torch.no_grad():
 
     print(f"Test MSE: {loss.item():.3e}")
 
-    plt.scatter(epochs-1, loss.item(), color='green')
+    plt.scatter(epoch_count, loss.item(), color='green')
 
     plt.show()
 
