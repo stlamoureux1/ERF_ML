@@ -111,8 +111,8 @@ scaler_X.fit(X_train_arr)
 scaler_Y.fit(Y_train_arr)
 
 # pickle scalers to use on separate data
-joblib.dump(scaler_X, 'scaler_X.pkl')
-joblib.dump(scaler_Y, 'scaler_Y.pkl')
+# joblib.dump(scaler_X, 'scaler_X.pkl')
+# joblib.dump(scaler_Y, 'scaler_Y.pkl')
 
 # Apply MinMax transform and convert to torch tensors
 X_train = torch.from_numpy(scaler_X.transform(X_train_arr))
@@ -195,8 +195,8 @@ for epoch in tqdm(range(epochs)):
 
 
 if plot_training:
-    plt.scatter(range(epoch_count), train_loss_history, marker='.', alpha=0.2)
-    plt.scatter(range(epoch_count), val_loss_history, marker='.', alpha=0.2, color='red')
+    plt.scatter(range(epoch_count), train_loss_history, marker='.', alpha=0.2, label='training loss (MSE)')
+    plt.scatter(range(epoch_count), val_loss_history, marker='.', alpha=0.2, color='red', label='validation loss (MSE)')
     plt.yscale('log')
 
 
@@ -208,8 +208,8 @@ with torch.no_grad():
 
     print(f"Test MSE: {loss.item():.3e}")
 
-    plt.scatter(epoch_count, loss.item(), color='green')
-
+    plt.scatter(epoch_count, loss.item(), color='green', label='test loss (MSE)')
+    plt.legend()
     plt.show()
 
 # model export
