@@ -1,0 +1,6 @@
+w 256
+i samples100k.csv
+o model_2025_0729.pt
+e 300
+lr 5e-5
+b 128
