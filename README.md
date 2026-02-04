@@ -3,6 +3,8 @@
 Goal: Build an ANN model that can function as a drop-in replacement for the Saturation Adjustment component
 in ERF Microphysics.
 
+Internship project from summer 2025. Read the draft write-up [here](https://github.com/stlamoureux1/CCI_Summer2025_Report/blob/development/Report/CCI_Summer2025_Report_Spencer_Lamoureux.pdf)
+
 ## Background
 
 In summer 2025, interned at Lawrence Berkeley National Laboratory in the [Center for Computational Sciences and Engineering](https://ccse.lbl.gov). This repository contains the code for my final project, done in about four weeks, after my other tasks were done. Our goal was to examine the feasability of an AI surrogate for solving moisture-temperature balance equations at every time step of a large scale fluid dynamics simulation in the [ERF](https://github.com/erf-model/ERF) codebase. To do this I trained a multi-layer perceptron on synthetic data from a traditional Newton solver. The results were promising, but my main finding was that statistical error on static held-out samples does not guarantee success in a time-stepping simulation.
